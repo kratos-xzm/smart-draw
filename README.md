@@ -1,8 +1,8 @@
-# Smart Excalidraw
+# Smart Diagram
 
-> **用自然语言，绘制专业图表**
+> **用自然语言，以最简单的方式绘制任何专业美观的图表**
 
-## 在线网站
+## 🌐 在线网站
 进入在线网站直接使用：https://smart-excalidraw.aizhi.site/
 
 🚀🚀🚀 限时福利
@@ -12,7 +12,7 @@
 ## English Version
 Read the English version: [README_EN.md](README_EN.md)
 
-## 效果预览
+## 📸 效果预览
 操作界面
 <img width="2330" height="1255" alt="PixPin_2025-10-31_17-14-27" src="https://github.com/user-attachments/assets/5319ad5c-c507-42e0-b67a-e9dfb2d7ecfa" />
 技术架构图
@@ -27,14 +27,19 @@ Read the English version: [README_EN.md](README_EN.md)
 ### 🎯 AI 驱动，效果出众
 通过先进的大语言模型理解你的需求，生成结构清晰、布局合理的专业级图表。
 
+### 🎨 双引擎支持
+支持 **Draw.io** 和 **Excalidraw** 两种绘图引擎：
+- **Draw.io**：专业与结构化，适合技术文档、企业架构和正式演示
+- **Excalidraw**：美观与创意，适合头脑风暴、创意设计和需要手绘风格的演示
+
 ### 🔗 独创连接算法
 采用独创的智能箭头优化算法，自动计算最佳连接点，确保图表井然有序、逻辑清晰，告别混乱的线条交叉。
 
 ### 📊 丰富图表类型
-支持 20+ 种图表类型，包括流程图、架构图、时序图、ER 图、思维导图等。也可以让AI根据你的描述自动选择最合适的图表类型。
+支持 20+ 种图表类型，包括流程图、架构图、时序图、ER 图、思维导图、网络拓扑图、甘特图等。也可以让AI根据你的描述自动选择最合适的图表类型。
 
-### 🎨 完美 Excalidraw 集成
-生成的图表完全基于 Excalidraw 格式，可以在画布上自由编辑、调整样式、添加细节，实现 AI 生成与手动精修的完美结合。
+### 🎨 完美编辑器集成
+生成的图表完全基于 Draw.io 或 Excalidraw 格式，可以在画布上自由编辑、调整样式、添加细节，实现 AI 生成与手动精修的完美结合。
 
 ### ⚡ 开箱即用
 只需配置一个 AI API 密钥即可开始使用，无需复杂的环境搭建。所有配置保存在本地浏览器，隐私安全有保障。
@@ -43,7 +48,9 @@ Read the English version: [README_EN.md](README_EN.md)
 
 ## 🚀 快速开始
 
-### 方式一：使用访问密码
+### 第一步：配置 AI 服务
+
+#### 方式一：使用访问密码
 
 如果服务器管理员已配置访问密码，你可以直接使用服务器端的 LLM 配置，无需自己提供 API Key：
 
@@ -54,7 +61,7 @@ Read the English version: [README_EN.md](README_EN.md)
 
 启用后，应用将优先使用服务器端配置，你无需配置自己的 API Key 即可开始创作！
 
-### 方式二：配置自己的 AI
+#### 方式二：配置自己的 AI
 
 1. 点击右上角的 **"配置 LLM"** 按钮
 2. 选择提供商类型（OpenAI 或 Anthropic）
@@ -64,7 +71,14 @@ Read the English version: [README_EN.md](README_EN.md)
 
 就这么简单！现在你可以开始创作了。
 
-### 第二步：创建图表
+### 第二步：选择绘图引擎
+
+访问应用后，你可以选择两种绘图引擎：
+
+- **Draw.io** (`/drawio`)：适合创建精确、专业的结构化图表
+- **Excalidraw** (`/excalidraw`)：适合创建手绘风格的创意图表
+
+### 第三步：创建图表
 
 在输入框中用自然语言描述你的需求，例如：
 - "画一个用户登录的流程图"
@@ -79,10 +93,10 @@ AI 会自动生成图表，你可以在画布上直接编辑和调整。
 
 ```bash
 # 克隆项目
-git clone <your-repo-url>
+git clone https://github.com/liujuntao123/smart-excalidraw-next.git
 cd smart-excalidraw-next
 
-# 安装依赖
+# 安装依赖（本项目使用 pnpm）
 pnpm install
 
 # 启动开发服务器
@@ -97,7 +111,7 @@ pnpm dev
 
 1. 复制环境变量示例文件：
 ```bash
-cp .env.example 
+cp .env.example .env
 ```
 
 2. 在 `.env` 中配置以下变量：
@@ -131,14 +145,17 @@ SERVER_LLM_MODEL=claude-sonnet-4-5-20250929
 **Q: 推荐使用哪个 AI 模型？**
 A: 强烈推荐使用 **claude-sonnet-4.5**，它在理解需求和生成图表方面表现最佳。
 
+**Q: Draw.io 和 Excalidraw 有什么区别？**
+A: Draw.io 适合创建精确、专业的结构化图表，适用于技术文档和正式演示；Excalidraw 提供手绘风格，适合头脑风暴和创意设计。你可以根据需求选择合适的引擎。
+
 **Q: 数据安全吗？**
-A: 所有配置信息仅保存在你的浏览器本地，不会上传到任何服务器。
+A: 所有配置信息仅保存在你的浏览器本地，不会上传到任何服务器（除非你使用访问密码功能连接到服务器端配置）。
 
 **Q: 支持哪些图表类型？**
-A: 支持流程图、架构图、时序图、ER 图、思维导图、网络拓扑图等 20+ 种类型，AI 会自动选择最合适的类型。
+A: 支持流程图、架构图、时序图、ER 图、思维导图、网络拓扑图、甘特图、UML类图、状态图、泳道图、概念图、鱼骨图、SWOT分析等 20+ 种类型。AI 会自动选择最合适的类型。
 
 **Q: 生成的图表可以修改吗？**
-A: 当然可以！生成后可以在 Excalidraw 画布上自由编辑，包括调整位置、修改样式、添加元素等。
+A: 当然可以！生成后可以在画布上自由编辑，包括调整位置、修改样式、添加元素等。Draw.io 和 Excalidraw 都提供了强大的编辑功能。
 
 **Q: 什么是访问密码功能？**
 A: 访问密码功能允许服务器管理员配置统一的 LLM，用户只需输入密码即可使用，无需自己申请 API Key。启用访问密码后，将优先使用服务器端配置，忽略本地配置。
@@ -148,7 +165,7 @@ A: 如果启用了访问密码，系统将优先使用服务器端的 LLM 配置
 
 ## 🛠️ 技术栈
 
-Next.js 16 · React 19 · Excalidraw · Tailwind CSS 4 · Monaco Editor
+Next.js 16 · React 19 · Draw.io · Excalidraw · Tailwind CSS 4 · Monaco Editor
 
 ## 📄 许可证
 
@@ -177,4 +194,4 @@ MIT License
 
 [![Star History Chart](https://api.star-history.com/svg?repos=liujuntao123/smart-excalidraw-next&type=date&legend=top-left)](https://www.star-history.com/#liujuntao123/smart-excalidraw-next&type=date&legend=top-left)
 
-**用自然语言，绘制专业图表** - 让可视化创作回归简单
+**用自然语言，以最简单的方式绘制任何专业美观的图表** - 让可视化创作回归简单
