@@ -91,6 +91,12 @@ export default function ConfigManager({ isOpen, onClose, onConfigSelect }) {
       configManager.cloneConfig(config.id, newName);
       loadConfigs();
       setError('');
+      setNotification({
+        isOpen: true,
+        title: '克隆成功',
+        message: '配置已成功克隆',
+        type: 'success'
+      });
     } catch (err) {
       setError('克隆配置失败: ' + err.message);
     }
@@ -224,7 +230,7 @@ export default function ConfigManager({ isOpen, onClose, onConfigSelect }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50"
@@ -359,16 +365,14 @@ export default function ConfigManager({ isOpen, onClose, onConfigSelect }) {
                       >
                         <Copy className="w-4 h-4 text-purple-600" />
                       </button>
-                      {configs.length > 1 && (
-                        <button
-                          onClick={() => handleDelete(config.id)}
-                          title="删除"
-                          aria-label="删除"
-                          className="inline-flex items-center justify-center w-8 h-8 rounded border border-gray-300 bg-white hover:bg-gray-50"
-                        >
-                          <Trash className="w-4 h-4 text-red-600" />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleDelete(config.id)}
+                        title="删除"
+                        aria-label="删除"
+                        className="inline-flex items-center justify-center w-8 h-8 rounded border border-gray-300 bg-white hover:bg-gray-50"
+                      >
+                        <Trash className="w-4 h-4 text-red-600" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -464,7 +468,7 @@ function ConfigEditor({ config, isCreating, onSave, onCancel }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center">
       <div
         className="absolute inset-0 bg-black/50"
         onClick={onCancel}

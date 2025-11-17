@@ -133,7 +133,7 @@ export default function HistoryModal({ isOpen, onClose, onApply, editorType }) {
                       <p className="text-sm text-gray-900 mb-2">
                         {truncateText(history.userInput)}
                       </p>
-                      {history.config && (
+                      {history.config && history.config.name && history.config.model && (
                         <div className="text-xs text-gray-500">
                           模型: {history.config.name} - {history.config.model}
                         </div>

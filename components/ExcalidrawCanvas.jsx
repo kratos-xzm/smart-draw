@@ -34,6 +34,7 @@ export default function ExcalidrawCanvas({ elements }) {
     }
 
     try {
+      console.log(elements)
       return convertToExcalidrawElements(elements);
     } catch (error) {
       console.error('Failed to convert elements:', error);

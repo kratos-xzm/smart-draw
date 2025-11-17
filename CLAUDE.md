@@ -4,185 +4,184 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Smart Excalidraw is an AI-powered diagram generation application that converts natural language descriptions into professional diagrams. It supports two diagram editors: **Draw.io** (default) and **Excalidraw**, with unique intelligent arrow optimization algorithms.
+Smart Diagram is an AI-powered diagram generation tool that supports two rendering engines (Draw.io and Excalidraw). Users describe diagrams in natural language, and LLMs generate the corresponding XML (Draw.io) or JSON (Excalidraw) code, which is then rendered on an interactive canvas.
 
-The application is built with Next.js 16 and React 19, supporting both OpenAI and Anthropic API providers.
+**Tech Stack:** Next.js 16 (App Router) · React 19 · Draw.io · Excalidraw · Tailwind CSS 4 · Monaco Editor
 
 ## Development Commands
 
 ```bash
-# Install dependencies (use pnpm, not npm)
+# Install dependencies (project uses pnpm)
 pnpm install
 
-# Run development server (requires --webpack flag)
+# Run development server
 pnpm dev
 
 # Build for production
-pnpm build
+pnpm build --webpack
 
 # Start production server
 pnpm start
 
 # Run linter
-pnpm lint
+eslint
 ```
 
-**Important**:
-- This project uses **pnpm** for package management. Always use `pnpm install` to add dependencies, not npm or yarn.
-- This project requires the `--webpack` flag for both dev and build commands due to compatibility requirements.
+The dev server runs on `http://localhost:3000`. Use `--webpack` flag when building to ensure compatibility with the project setup.
 
-## Architecture
+## Architecture Overview
 
-### Dual Editor System
+### Dual-Engine System
 
-The application supports two diagram formats with separate routes and components:
+The application implements a **Strategy Pattern** for diagram engines:
 
-1. **Draw.io Editor** (`/drawio` - default route)
-   - Generates mxGraph XML format diagrams
-   - Component: [DrawioCanvas.jsx](components/DrawioCanvas.jsx)
-   - API: [/api/generate/route.js](app/api/generate/route.js)
-   - Prompts: [lib/prompts.js](lib/prompts.js)
+- **Engine Selection:** `hooks/useEngine.js` dynamically returns either `useDrawioEngine` or `useExcalidrawEngine` based on runtime `engineType` state
+- **Engine Interface (IEngine):** Each engine hook exposes:
+  - `usedCode`: XML (Draw.io) or JSON (Excalidraw) applied to canvas
+  - `messages`: LLM message history
+  - `isGenerating`: generation state flag
+  - `streamingContent`: real-time streaming content from LLM
+  - `conversationId`: unique conversation identifier
+  - `handleSendMessage()`: send user input to LLM
+  - `handleApplyCode()`: apply generated code to canvas
+  - `handleCanvasChange()`: handle user edits on canvas
+  - `handleNewChat()`: reset conversation state
+  - `handleRestoreHistory()`: restore from history
 
-2. **Excalidraw Editor** (`/excalidraw`)
-   - Generates ExcalidrawElementSkeleton JSON format diagrams
-   - Component: [ExcalidrawCanvas.jsx](components/ExcalidrawCanvas.jsx)
-   - API: [/api/generate/excalidraw/route.js](app/api/generate/excalidraw/route.js)
-   - Prompts: [lib/prompts/excalidraw.js](lib/prompts/excalidraw.js) (re-exports from `smart-excalidraw/lib/prompts.js`)
+### LLM Integration Flow
 
-Both editors share the same page structure pattern with [FloatingChat.jsx](components/FloatingChat.jsx) for user interaction.
+**Frontend → Backend Proxy → LLM Provider:**
 
-### Key Architecture Patterns
+1. **Frontend** (`hooks/useDrawioEngine.js` or `hooks/useExcalidrawEngine.js`):
+   - Constructs complete `messages` array with system prompt + user prompt
+   - Reads active config via `getConfig()` from `lib/config.js`
+   - POSTs `{ config, messages }` to `/api/llm/stream`
 
-**LLM Integration** ([lib/llm-client.js](lib/llm-client.js))
-- Unified client supporting both OpenAI and Anthropic APIs
-- Server-Sent Events (SSE) streaming for real-time diagram generation
-- Multimodal support for image inputs (converts images to diagrams)
-- Message format normalization between providers
+2. **Backend Proxy** (`app/api/llm/stream/route.js`):
+   - Validates `config` and `messages`
+   - Calls `callLLM()` from `lib/llm-client.js`
+   - Returns SSE (Server-Sent Events) stream: `data: {"content": "..."}\n\n`
+   - Terminates with `data: [DONE]\n\n`
 
-**Access Control**
-- Supports both client-side API key configuration and server-side access password authentication
-- When `ACCESS_PASSWORD` is set in environment variables, users can use server-provided LLM without their own API keys
-- Password validated via `x-access-password` header in API routes
-- Priority: Server-side config (with password) > Client-side config
+3. **LLM Client** (`lib/llm-client.js`):
+   - Supports OpenAI and Anthropic APIs
+   - Handles streaming responses and multimodal content (text + images)
+   - Normalizes different provider formats
 
-**Conversation Management** ([lib/history-manager.js](lib/history-manager.js) + [lib/indexeddb.js](lib/indexeddb.js))
-- IndexedDB-based storage with three object stores: `conversations`, `messages`, `blobs`
-- Supports conversation threads with up to 3 messages of history (HISTORY_LIMIT)
-- Binary attachments (images/files) stored separately in `blobs` store
-- Each conversation has a unique ID and tracks editor type (drawio/excalidraw)
+### Configuration System
 
-**Arrow Optimization Algorithm**
-- Excalidraw diagrams use a proprietary intelligent arrow optimization algorithm
-- Located in [smart-excalidraw/lib/optimizeArrows.js](smart-excalidraw/lib/optimizeArrows.js)
-- Automatically calculates optimal connection points between elements to avoid overlapping lines
-- Uses quadrant-based edge detection to determine best arrow attachment points
+**Multi-config + Access Password:**
 
-### Component Structure
+- **Local Configs:** Managed by `lib/config-manager.js` (CRUD operations in `localStorage`)
+- **Remote Config:** When access password is enabled, backend config is fetched and stored in `localStorage` as `smart-diagram-remote-config`
+- **Active Config Resolution:** `lib/config.js` → `getConfig()` returns the final effective config:
+  - If `smart-diagram-use-password === 'true'`: use remote config
+  - Otherwise: use active local config from `config-manager.js`
+- All components call `getConfig()` to get the current LLM configuration
 
-**Shared UI Components**
-- [FloatingChat.jsx](components/FloatingChat.jsx): Chat interface with image/file upload, supports 20+ chart types
-- [AppHeader.jsx](components/AppHeader.jsx): Navigation header with settings/history buttons
-- [HistoryModal.jsx](components/HistoryModal.jsx): Browse and restore previous diagrams
-- [CombinedSettingsModal.jsx](components/CombinedSettingsModal.jsx): LLM configuration and access password setup
-- [ui/](components/ui/): Radix UI-based components (Button, Dialog, ScrollArea, etc.)
+### Code Post-Processing
 
-**Canvas Components**
-- Both canvas components are dynamically imported with `ssr: false` to avoid SSR issues
-- [DrawioCanvas.jsx](components/DrawioCanvas.jsx): Embeds Draw.io editor via iframe
-- [ExcalidrawCanvas.jsx](components/ExcalidrawCanvas.jsx): Integrates @excalidraw/excalidraw library
+**Draw.io (XML):**
+- Extract from code fences: `` ```xml ... ``` ``
+- Fix unclosed tags: `lib/fixUnclosed.js` repairs malformed XML
+- Clean BOM and zero-width characters
+- Function: `postProcessDrawioCode()` in `hooks/useDrawioEngine.js`
 
-### API Routes
+**Excalidraw (JSON):**
+- Extract from code fences: `` ```json ... ``` ``
+- Repair incomplete JSON: `lib/fixUnclosed.js` → `fixJSON()`
+- Optimize arrow coordinates: `lib/optimizeArrows.js` → `optimizeExcalidrawCode()`
+- Function: `postProcessExcalidrawCode()` in `hooks/useExcalidrawEngine.js`
 
-- `/api/generate` - Generate Draw.io XML diagrams
-- `/api/generate/excalidraw` - Generate Excalidraw JSON diagrams
-- `/api/auth/validate` - Validate access password
-- `/api/models` - Fetch available LLM models
-- `/api/configs` - Manage LLM configurations
+### History & Persistence
 
-All generation endpoints support:
-- SSE streaming responses
-- Access password authentication
-- Conversation history (last 3 messages)
-- Multimodal inputs (text + images)
-- Context-aware regeneration (for iterative editing)
+- **IndexedDB:** `lib/indexeddb.js` provides low-level DB operations
+- **History Manager:** `lib/history-manager.js` wraps IndexedDB:
+  - Stores conversations with messages, chart type, config, and binary attachments (images/files)
+  - Each conversation has a unique `conversationId` and can be restored
+  - Binary attachments stored as blobs with references in messages
+- Engines call `historyManager.addHistory()` after each successful generation
 
-### Data Flow
+### Main Page Flow
 
-1. User enters description in [FloatingChat.jsx](components/FloatingChat.jsx)
-2. Request sent to appropriate `/api/generate/*` endpoint with config, userInput, chartType, history
-3. LLM client ([lib/llm-client.js](lib/llm-client.js)) streams response via SSE
-4. Response parsed and displayed in Canvas component
-5. History saved to IndexedDB via [history-manager.js](lib/history-manager.js)
+**`app/draw/page.js`** (routed from both `/` and `/draw`):
 
-## Environment Variables
+1. Manages `engineType` state ('drawio' | 'excalidraw')
+2. Calls `useEngine(engineType)` to get active engine instance
+3. Renders either `DrawioCanvas` or `ExcalidrawCanvas` based on `engineType`
+4. Provides `FloatingChat` component with callbacks to engine methods
+5. Handles engine switching with confirmation dialog (clears state)
+6. Listens for config changes via `storage` events and custom events
 
-Server-side LLM configuration (optional, see [.env.example](.env.example)):
+**Canvas Components:**
+- `DrawioCanvas`: Embeds Draw.io editor, passes XML via props, calls `onSave(xml)` on user edits
+- `ExcalidrawCanvas`: Embeds Excalidraw, parses JSON to elements, calls `onChange(elements)` on user edits
+
+## Key Conventions
+
+### File Organization
+
+- **Pages:** `app/**/*.js` (Next.js App Router)
+- **Components:** `components/*.jsx` (client components)
+- **Hooks:** `hooks/*.js` (custom React hooks)
+- **Utilities:** `lib/*.js` (non-React logic)
+- **Prompts:** `lib/prompts/drawio.js` and `lib/prompts/excalidraw.js` (LLM system/user prompts)
+- **API Routes:** `app/api/**/route.js`
+
+### Code Style
+
+- ES modules only (`import`/`export`)
+- Client components marked with `"use client";`
+- Tailwind CSS for styling
+- No license headers
+- Follow AGENTS.md for detailed conventions (see that file for specifics)
+
+### LLM Prompts
+
+- **Draw.io:** `lib/prompts/drawio.js` exports `SYSTEM_PROMPT` and `USER_PROMPT_TEMPLATE`
+- **Excalidraw:** `lib/prompts/excalidraw.js` exports `SYSTEM_PROMPT` and `USER_PROMPT_TEMPLATE`
+- Prompts are constructed in engine hooks, not in API routes
+
+### Environment Variables (Optional)
+
+For server-side LLM configuration (see `.env.example`):
 
 ```bash
-ACCESS_PASSWORD=your-secure-password       # Required for server-side auth
-SERVER_LLM_TYPE=openai|anthropic          # Provider type
-SERVER_LLM_BASE_URL=https://api.*/v1      # API endpoint
-SERVER_LLM_API_KEY=sk-***                 # API key
-SERVER_LLM_MODEL=claude-sonnet-4-5-20250929  # Model name
+ACCESS_PASSWORD=your-secure-password
+SERVER_LLM_TYPE=anthropic  # or 'openai'
+SERVER_LLM_BASE_URL=https://api.anthropic.com/v1
+SERVER_LLM_API_KEY=sk-ant-your-key-here
+SERVER_LLM_MODEL=claude-sonnet-4-5-20250929
 ```
 
-## Important Implementation Details
+When configured, users can access LLM via password instead of providing their own API keys. Route: `app/api/llm/config/route.js`
 
-**XML/JSON Fixing Utilities**
-- [lib/fixUnclosed.js](lib/fixUnclosed.js): Fixes malformed XML/JSON from LLM responses
-- Default export for XML (Draw.io), named export `fixJSON` for Excalidraw
+## Testing & Validation
 
-**Prompt Engineering**
-- System prompts are highly detailed and specify exact output format constraints
-- Prompts emphasize layout spacing (400px+ for Draw.io, 800px+ for Excalidraw) to avoid overlapping
-- Special handling for image inputs: analyze visual elements and convert to diagram format
-- Draw.io prompts focus on mxGraph XML structure with proper ID management
-- Excalidraw prompts focus on ExcalidrawElementSkeleton API with binding/container mechanisms
+**This project does not use automated tests.** Do not run tests after making code changes. Validate changes manually via `pnpm dev` only. See AGENTS.md for explicit guidance on this policy.
 
-**Message History**
-- Conversation history is limited to last 3 messages to control token usage
-- History is filtered to include only 'user' and 'assistant' roles with string content
-- Messages stored with role, content, type (xml/json/text), and attachments
+## Important Implementation Notes
 
-**Smart Excalidraw Directory**
-- The [smart-excalidraw/](smart-excalidraw/) directory contains the original standalone Excalidraw version
-- Current implementation re-exports utilities from this directory (e.g., optimizeArrows, prompts)
-- Some modules like [lib/prompts/excalidraw.js](lib/prompts/excalidraw.js) simply re-export from smart-excalidraw
+1. **Arrow Optimization:** When working with Excalidraw arrows, always use `optimizeExcalidrawCode()` to calculate optimal connection points between elements
 
-**Webpack Configuration**
-- Must use `--webpack` flag for Next.js commands due to dependencies requiring webpack mode
-- This is specified in [package.json](package.json) scripts
+2. **XML Repair:** For Draw.io, always run generated XML through `fixUnclosed()` before applying to canvas, as LLMs may generate incomplete tags
 
-## Supported Chart Types
+3. **Config Changes:** Listen for both `storage` events (cross-tab sync) and custom events like `password-settings-changed` when config state changes
 
-The application supports 20+ diagram types (see [FloatingChat.jsx:80-100](components/FloatingChat.jsx#L80-L100)):
-- Flowchart, Mind Map, Org Chart, Sequence Diagram, UML Class Diagram
-- ER Diagram, Gantt Chart, Timeline, Tree Diagram, Network Topology
-- Architecture Diagram, Data Flow Diagram, State Diagram, Swimlane Diagram
-- Concept Map, Fishbone Diagram, SWOT Analysis, Pyramid, Funnel, Infographic, etc.
+4. **Engine Switching:** Always prompt user confirmation before switching engines, as it clears conversation state
 
-Users can select a specific type or use "auto" to let the AI choose the most appropriate type.
+5. **Streaming Display:** Use `streamingContent` state to show real-time LLM output in the chat UI, separate from finalized `messages`
 
-## Common Workflows
+6. **History Restoration:** Check `history.editor` field matches current `engineType` before restoring; prompt to switch engines if mismatch
 
-**Adding a New Chart Type**
-1. Add to `chartTypeOptions` in [FloatingChat.jsx](components/FloatingChat.jsx)
-2. Update system prompts in [lib/prompts.js](lib/prompts.js) or [smart-excalidraw/lib/prompts.js](smart-excalidraw/lib/prompts.js) if special handling needed
+7. **Binary Attachments:** Images and files are stored as blobs in IndexedDB and referenced via `blobId` in message content
 
-**Modifying LLM Behavior**
-- Edit system prompts in [lib/prompts.js](lib/prompts.js) (Draw.io) or [smart-excalidraw/lib/prompts.js](smart-excalidraw/lib/prompts.js) (Excalidraw)
-- Adjust HISTORY_LIMIT in generation routes if more/less context needed
-- Modify streaming logic in [lib/llm-client.js](lib/llm-client.js) for different providers
+## Bilingual Documentation
 
-**Debugging Generation Issues**
-1. Check browser console for SSE parsing errors
-2. Verify LLM response format matches expected XML/JSON structure
-3. Test fix functions ([lib/fixUnclosed.js](lib/fixUnclosed.js)) with malformed output
-4. For Excalidraw: check arrow optimization in [smart-excalidraw/lib/optimizeArrows.js](smart-excalidraw/lib/optimizeArrows.js)
+Both Chinese (`README.md`) and English (`README_EN.md`) versions exist. When updating user-facing docs, maintain both if changes affect core features. Product requirements are in `docs/prd.md` (Chinese).
 
-## Development Workflow Guidelines
+## Related Files
 
-**Testing and Verification**
-- After making code changes, **do not** run tests or verify functionality yourself
-- Simply complete the implementation and let the user test and verify the changes
-- The user is responsible for testing and validation
+- **`AGENTS.md`**: Detailed coding conventions, style guide, and architectural patterns (authoritative reference)
+- **`package.json`**: Dependencies and scripts
+- **`.env.example`**: Server-side configuration template

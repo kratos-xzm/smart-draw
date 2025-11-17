@@ -54,13 +54,17 @@ function TextFilePicker({ onPick, children }) {
 }
 
 export default function FloatingChat({
+  engineType = 'drawio', // ✨ v6.0: 当前引擎类型
+  onEngineSwitch, // ✨ v6.0: 引擎切换回调
   onSendMessage,
   isGenerating,
   messages = [],
+  streamingContent = '', // ✨ 流式生成中的内容
   onFileUpload,
   onImageUpload,
   onNewChat,
-  onApplyXml,
+  onApplyXml, // ⚠️ Deprecated, use onApplyCode
+  onApplyCode, // ✨ v6.0: 应用代码回调
   conversationId,
   onOpenHistory,
   onOpenSettings,
@@ -72,11 +76,22 @@ export default function FloatingChat({
   const [files, setFiles] = useState([]); // {file, name, type, size}
   const [chartType, setChartType] = useState('auto');
   const [showTypeMenu, setShowTypeMenu] = useState(false);
+  const [showEngineMenu, setShowEngineMenu] = useState(false); // ✨ v6.0: 引擎切换菜单
   const typeMenuRef = useRef(null);
   const typeMenuButtonRef = useRef(null);
+  const engineMenuRef = useRef(null); // ✨ v6.0
+  const engineMenuButtonRef = useRef(null); // ✨ v6.0
   const bottomRef = useRef(null);
   const [shouldStickToBottom, setShouldStickToBottom] = useState(true);
   const [copiedIndex, setCopiedIndex] = useState(-1);
+
+  // ✨ v6.0: 引擎选项
+  const engineOptions = [
+    { value: 'drawio', label: 'Draw.io' },
+    { value: 'excalidraw', label: 'Excalidraw' },
+  ];
+  const currentEngineLabel = engineOptions.find(o => o.value === engineType)?.label || 'Draw.io';
+
   const chartTypeOptions = [
     { value: 'auto', label: '自动' },
     { value: 'flowchart', label: '流程图' },
@@ -136,13 +151,12 @@ export default function FloatingChat({
     }
 
     // Pass images up so the page can serialize and send
-    onSendMessage(
-      combinedText,
-      chartType,
-      images.map(({ file, type, name }) => ({ file, type, name })),
-      files.map(({ file, name, type, size }) => ({ file, name, type, size })),
-      typedText
-    );
+    // Combine images and files into attachments array
+    const attachments = [
+      ...images.map(({ file, type, name }) => ({ file, type, name, kind: 'image', url: URL.createObjectURL(file) })),
+      ...files.map(({ file, name, type, size }) => ({ file, name, type, size, kind: 'file' }))
+    ];
+    onSendMessage(combinedText, attachments, chartType);
 
     // Clear input and caches
     setInput('');
@@ -213,6 +227,30 @@ export default function FloatingChat({
     };
   }, [showTypeMenu]);
 
+  // ✨ v6.0: Close engine menu on outside click or Escape
+  useEffect(() => {
+    if (!showEngineMenu) return;
+    const handleClickOutside = (e) => {
+      const menuEl = engineMenuRef.current;
+      const buttonEl = engineMenuButtonRef.current;
+      if (
+        menuEl && !menuEl.contains(e.target) &&
+        (!buttonEl || !buttonEl.contains(e.target))
+      ) {
+        setShowEngineMenu(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setShowEngineMenu(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside, true);
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside, true);
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [showEngineMenu]);
+
   // Notify page about chat panel visibility and width to allow padding adjustment
   useEffect(() => {
     const notify = () => {
@@ -273,7 +311,7 @@ export default function FloatingChat({
     // Draw.io XML heuristics
     if (/^(<\?xml|<mxfile|<diagram|<mxGraphModel|<graph)/i.test(trimmed)) return true;
     // Excalidraw JSON heuristics
-    if ((trimmed.startsWith('{') || trimmed.startsWith('[')) && /"type"\s*:\s*"excalidraw"/i.test(trimmed)) return true;
+    if ((trimmed.startsWith('{') || trimmed.startsWith('[')) ) return true;
     return false;
   };
 
@@ -285,9 +323,18 @@ export default function FloatingChat({
     return text.trim();
   };
 
-  const copyUserMessage = async (text = '', idx) => {
+  const copyUserMessage = async (content = '', idx) => {
     try {
-      await navigator.clipboard.writeText(typeof text === 'string' ? text : String(text || ''));
+      let textToCopy = '';
+      if (typeof content === 'string') {
+        textToCopy = content;
+      } else if (Array.isArray(content)) {
+        const textContent = content.find(c => c.type === 'text');
+        textToCopy = textContent?.text || '';
+      } else {
+        textToCopy = String(content || '');
+      }
+      await navigator.clipboard.writeText(textToCopy);
       setCopiedIndex(idx);
       setTimeout(() => setCopiedIndex(-1), 1200);
     } catch (e) {
@@ -311,19 +358,48 @@ export default function FloatingChat({
     <Card ref={panelRef} className="fixed top-2 bottom-2 right-2 w-[420px] h-auto shadow-xl flex flex-col z-50 bg-white/90 supports-[backdrop-filter]:bg-white/80 backdrop-blur border border-gray-200/70 rounded-2xl">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-transparent rounded-t-3xl">
-        <div className="flex items-center gap-2">
-          {/* <div className="w-2 h-2 rounded-full bg-emerald-500" /> */}
-          <h3 className="font-semibold text-sm text-gray-800">对话</h3>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            title="历史记录"
-            onClick={() => onOpenHistory && onOpenHistory()}
+        {/* ✨ v6.0: 左侧 - 引擎切换下拉菜单 */}
+        <div className="relative flex items-center gap-2">
+          <button
+            ref={engineMenuButtonRef}
+            onClick={() => setShowEngineMenu(v => !v)}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-md text-sm font-medium text-gray-800 hover:bg-gray-100 transition-colors"
+            title="切换绘图引擎"
           >
-            <Clock className="w-4 h-4" />
-          </Button>
+            <span>{currentEngineLabel}</span>
+            <ChevronDown className={cn(
+              'w-3.5 h-3.5 text-gray-600 transition-transform',
+              showEngineMenu ? 'rotate-180' : 'rotate-0'
+            )} />
+          </button>
+
+          {/* 引擎下拉菜单 */}
+          {showEngineMenu && (
+            <div
+              ref={engineMenuRef}
+              className="absolute left-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1"
+            >
+              {engineOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => {
+                    setShowEngineMenu(false);
+                    if (onEngineSwitch) onEngineSwitch(opt.value);
+                  }}
+                  className={cn(
+                    'w-full text-left px-3 py-2 text-sm hover:bg-gray-100 transition-colors',
+                    engineType === opt.value ? 'bg-gray-50 text-gray-900 font-medium' : 'text-gray-700'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 右侧 - 操作按钮 */}
+        <div className="flex items-center gap-1.5">
           <Button
             variant="ghost"
             size="icon"
@@ -331,6 +407,14 @@ export default function FloatingChat({
             onClick={() => onOpenSettings && onOpenSettings()}
           >
             <Settings className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            title="历史记录"
+            onClick={() => onOpenHistory && onOpenHistory()}
+          >
+            <Clock className="w-4 h-4" />
           </Button>
           <Button
             variant="ghost"
@@ -364,10 +448,18 @@ export default function FloatingChat({
               const isSystem = msg.role === 'system'
 
               if (isSystem) {
+                // Check if it's an error message
+                const isError = msg.content && msg.content.includes('❌');
                 return (
-                  <div key={idx} className="flex items-start gap-2 text-[13px] text-gray-500">
+                  <div key={idx} className={cn(
+                    "flex items-start gap-2 text-[13px]",
+                    isError ? "text-red-600" : "text-gray-500"
+                  )}>
                     <Bot className="w-4 h-4 mt-1 opacity-70" />
-                    <div className="italic">System: {msg.content}</div>
+                    <div className={cn(
+                      "px-3 py-2 rounded-md",
+                      isError ? "bg-red-50 border border-red-200 text-red-700" : "italic"
+                    )}>{msg.content}</div>
                   </div>
                 )
               }
@@ -380,8 +472,12 @@ export default function FloatingChat({
                     isUser ? 'justify-end' : 'justify-start'
                   )}
                 >
-                  {(!isUser && (msg.type === 'xml' || msg.type === 'json' || isCodeContent(msg.content))) ? (
-                    <CodeBubble codeText={extractCode(msg.content)} onApplyXml={onApplyXml} />
+                  {(!isUser && (isCodeContent(msg.content))) ? (
+                    <CodeBubble
+                      codeText={extractCode(msg.content)}
+                      onApplyCode={onApplyCode}
+                      onApplyXml={onApplyXml}
+                    />
                   ) : (
                     <div className="relative inline-flex justify-end items-end">
                       <button
@@ -404,7 +500,28 @@ export default function FloatingChat({
                         )}
                       >
                         {msg.content && (
-                          <div>{msg.content}</div>
+                          <div>
+                            {typeof msg.content === 'string'
+                              ? msg.content
+                              : Array.isArray(msg.content)
+                                ? msg.content.find(c => c.type === 'text')?.text || ''
+                                : ''
+                            }
+                          </div>
+                        )}
+                        {isUser && Array.isArray(msg.content) && msg.content.some(c => c.type === 'image_url') && (
+                          <div className={cn('mt-2 flex flex-wrap gap-2')}>
+                            {msg.content.filter(c => c.type === 'image_url').map((im, i) => (
+                              <img
+                                key={i}
+                                src={im.image_url?.url || ''}
+                                alt={`image-${i}`}
+                                className={cn(
+                                  'w-16 h-16 rounded-md object-cover ring-1 ring-gray-300'
+                                )}
+                              />
+                            ))}
+                          </div>
                         )}
                         {isUser && Array.isArray(msg.files) && msg.files.length > 0 && (
                           <div className={cn('mt-2 flex flex-wrap gap-2')}>
@@ -441,13 +558,20 @@ export default function FloatingChat({
           )}
           {isGenerating && (
             <div className="flex justify-start">
-              <div className="rounded-xl px-4 py-2 text-sm bg-gray-100 border border-gray-200 shadow-none">
-                <div className="flex space-x-2 items-center gap-2">
-                正在绘制图表，请勿关闭页面
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
+              <div className="w-[95%] min-w-0">
+                {/* ✨ 实时显示生成的代码 */}
+                {streamingContent && streamingContent.trim() ? (
+                  <StreamingCodeBubble codeText={streamingContent} />
+                ) : (
+                  <div className="rounded-xl px-4 py-2 text-sm bg-gray-100 border border-gray-200 shadow-none">
+                    <div className="flex space-x-2 items-center gap-2">
+                      正在绘制图表，请勿关闭页面
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -629,7 +753,28 @@ export default function FloatingChat({
   );
 }
 
-function CodeBubble({ codeText, onApplyXml }) {
+// ✨ 流式生成中的代码气泡（简化版，只显示代码，不可交互）
+function StreamingCodeBubble({ codeText }) {
+  return (
+    <div className="w-full min-w-0 rounded-md overflow-hidden border border-gray-200 bg-gray-50 text-gray-900 shadow-none">
+      <div className="flex items-center justify-between px-3 py-2 bg-gray-100 border-b border-gray-200">
+        <div className="flex items-center gap-2 text-[12px] font-medium text-gray-700">
+          <Code2 className="w-3.5 h-3.5 opacity-80" />
+          <span>正在生成...</span>
+        </div>
+      </div>
+      <div className="relative w-full min-w-0">
+        <pre
+          className={cn(
+            'font-mono text-[12px] leading-6 px-3 py-3 whitespace-pre-wrap break-words break-all text-gray-800 max-h-[60vh] overflow-auto w-full max-w-full min-w-0'
+          )}
+        >{codeText}</pre>
+      </div>
+    </div>
+  );
+}
+
+function CodeBubble({ codeText, onApplyCode, onApplyXml }) {
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -640,6 +785,20 @@ function CodeBubble({ codeText, onApplyXml }) {
       setTimeout(() => setCopied(false), 1200);
     } catch (e) {
       console.error('Copy failed', e);
+    }
+  };
+
+  // ✨ v6.0: 优先使用 onApplyCode，回退到 onApplyXml
+  const handleApply = () => {
+    if (typeof onApplyCode === 'function') {
+      onApplyCode(codeText);
+    } else if (typeof onApplyXml === 'function') {
+      onApplyXml(codeText);
+    } else {
+      // Fallback: dispatch event
+      try {
+        window.dispatchEvent(new CustomEvent('apply-xml', { detail: { xml: codeText } }));
+      } catch {}
     }
   };
 
@@ -658,13 +817,7 @@ function CodeBubble({ codeText, onApplyXml }) {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (typeof onApplyXml === 'function') {
-                onApplyXml(codeText);
-              } else {
-                try {
-                  window.dispatchEvent(new CustomEvent('apply-xml', { detail: { xml: codeText } }));
-                } catch {}
-              }
+              handleApply();
             }}
             className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-xs text-gray-700 hover:bg-gray-200"
             title="应用到画布"
