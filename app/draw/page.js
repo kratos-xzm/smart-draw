@@ -279,11 +279,12 @@ export default function DrawPage() {
 
   /**
    * 新建对话处理
-   * 调用引擎的handleNewChat
+   * 调用引擎的handleNewChat，同时清空代码编辑器
    */
   const handleNewChat = useCallback(() => {
+    clearFloatingCodeCache();
     engine.handleNewChat();
-  }, [engine]);
+  }, [engine, clearFloatingCodeCache]);
 
   /**
    * 恢复历史记录处理
