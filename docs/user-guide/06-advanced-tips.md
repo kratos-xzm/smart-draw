@@ -56,7 +56,6 @@
 
 - **正式场合**：用 Draw.io，输出专业规整
 - **头脑风暴**：用 Excalidraw，风格轻松自然
-- 可以先用 Excalidraw 快速构思，再用 Draw.io 精细化
 
 
 
